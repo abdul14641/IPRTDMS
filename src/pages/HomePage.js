@@ -1,148 +1,351 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import { Route, Switch, Redirect } from "react-router-dom";
 import { Routes } from "../routes";
+import { supabase } from "../config/supabaseClient";
 
-// pages
-import Presentation from "./Presentation";
-import Upgrade from "./Upgrade";
-import DashboardOverview from "./dashboard/DashboardOverview";
-import Transactions from "./Transactions";
-import Settings from "./Settings";
-import BootstrapTables from "./tables/BootstrapTables";
-import Signin from "./examples/Signin";
-import Signup from "./examples/Signup";
-import ForgotPassword from "./examples/ForgotPassword";
-import ResetPassword from "./examples/ResetPassword";
-import Lock from "./examples/Lock";
-import NotFoundPage from "./examples/NotFound";
-import ServerError from "./examples/ServerError";
-
-// documentation pages
-import DocsOverview from "./documentation/DocsOverview";
-import DocsDownload from "./documentation/DocsDownload";
-import DocsQuickStart from "./documentation/DocsQuickStart";
-import DocsLicense from "./documentation/DocsLicense";
-import DocsFolderStructure from "./documentation/DocsFolderStructure";
-import DocsBuild from "./documentation/DocsBuild";
-import DocsChangelog from "./documentation/DocsChangelog";
-
-// components
+// Layout Components
 import Sidebar from "../components/Sidebar";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import Preloader from "../components/Preloader";
 
-import Accordion from "./components/Accordion";
-import Alerts from "./components/Alerts";
-import Badges from "./components/Badges";
-import Breadcrumbs from "./components/Breadcrumbs";
-import Buttons from "./components/Buttons";
-import Forms from "./components/Forms";
-import Modals from "./components/Modals";
-import Navs from "./components/Navs";
-import Navbars from "./components/Navbars";
-import Pagination from "./components/Pagination";
-import Popovers from "./components/Popovers";
-import Progress from "./components/Progress";
-import Tables from "./components/Tables";
-import Tabs from "./components/Tabs";
-import Tooltips from "./components/Tooltips";
-import Toasts from "./components/Toasts";
+// Pages
+import Presentation from "./Presentation";
+import Signin from "./examples/Signin";
+import Signup from "./examples/Signup";
+import ForgotPassword from "./examples/ForgotPassword";
+import DashboardOverview from "./dashboard/DashboardOverview";
+import DashboardLeader from "./dashboard/DashboardLeader";
+import DashboardMember from "./dashboard/DashboardMember";
+import NotFoundPage from "./examples/NotFound";
 
+// Project Pages
+import ProjectCreate from "./dashboard/projects/ProjectCreate";
+import ProjectList from "./dashboard/projects/ProjectsList";
+import ProjectMembers from "./dashboard/projects/ProjectMembers";
+
+// Student Pages
+import StudentManage from "./dashboard/students/StudentManage";
+import StudentAdd from "./dashboard/students/StudentAdd";
+import StudentList from "./dashboard/students/StudentsList";
+import StudentEdit from "./dashboard/students/StudentEdit";
+import StudentView from "./dashboard/students/StudentView";
+
+// Attendance Pages
+import AttendanceManage from "./dashboard/attendance/AttendanceManage";
+import AttendanceHistory from "./dashboard/attendance/AttendanceHistory";
+import AttendanceSummary from "./dashboard/attendance/AttendanceSummary";
+
+// Requisition Pages
+import RequisitionCreate from "./dashboard/requisitions/RequisitionCreate";
+import RequisitionList from "./dashboard/requisitions/RequisitionList";
+import RequisitionView from "./dashboard/requisitions/RequisitionView";
+import RequisitionSummary from "./dashboard/requisitions/RequisitionSummary";
+
+import NotificationCenter from "./dashboard/notifications/NotificationCenter";
+
+/* ==============================================================
+   ROUTE WITH LOADER
+============================================================== */
 const RouteWithLoader = ({ component: Component, ...rest }) => {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoaded(true), 1000);
+    const timer = setTimeout(() => setLoaded(true), 800);
     return () => clearTimeout(timer);
   }, []);
 
   return (
-    <Route {...rest} render={props => ( <> <Preloader show={loaded ? false : true} /> <Component {...props} /> </> ) } />
-  );
-};
-
-const RouteWithSidebar = ({ component: Component, ...rest }) => {
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoaded(true), 1000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const localStorageIsSettingsVisible = () => {
-    return localStorage.getItem('settingsVisible') === 'false' ? false : true
-  }
-
-  const [showSettings, setShowSettings] = useState(localStorageIsSettingsVisible);
-
-  const toggleSettings = () => {
-    setShowSettings(!showSettings);
-    localStorage.setItem('settingsVisible', !showSettings);
-  }
-
-  return (
-    <Route {...rest} render={props => (
-      <>
-        <Preloader show={loaded ? false : true} />
-        <Sidebar />
-
-        <main className="content">
-          <Navbar />
+    <Route
+      {...rest}
+      render={(props) => (
+        <>
+          <Preloader show={!loaded} />
           <Component {...props} />
-          <Footer toggleSettings={toggleSettings} showSettings={showSettings} />
-        </main>
-      </>
-    )}
+        </>
+      )}
     />
   );
 };
 
-export default () => (
-  <Switch>
-    <RouteWithLoader exact path={Routes.Presentation.path} component={Presentation} />
-    <RouteWithLoader exact path={Routes.Signin.path} component={Signin} />
-    <RouteWithLoader exact path={Routes.Signup.path} component={Signup} />
-    <RouteWithLoader exact path={Routes.ForgotPassword.path} component={ForgotPassword} />
-    <RouteWithLoader exact path={Routes.ResetPassword.path} component={ResetPassword} />
-    <RouteWithLoader exact path={Routes.Lock.path} component={Lock} />
-    <RouteWithLoader exact path={Routes.NotFound.path} component={NotFoundPage} />
-    <RouteWithLoader exact path={Routes.ServerError.path} component={ServerError} />
+/* ==============================================================
+   ROUTE WITH SIDEBAR
+============================================================== */
+const RouteWithSidebar = ({ component: Component, ...rest }) => {
+  const [loaded, setLoaded] = useState(false);
+  const [showSettings, setShowSettings] = useState(true);
 
-    {/* pages */}
-    <RouteWithSidebar exact path={Routes.DashboardOverview.path} component={DashboardOverview} />
-    <RouteWithSidebar exact path={Routes.Upgrade.path} component={Upgrade} />
-    <RouteWithSidebar exact path={Routes.Transactions.path} component={Transactions} />
-    <RouteWithSidebar exact path={Routes.Settings.path} component={Settings} />
-    <RouteWithSidebar exact path={Routes.BootstrapTables.path} component={BootstrapTables} />
+  useEffect(() => {
+    const timer = setTimeout(() => setLoaded(true), 800);
+    return () => clearTimeout(timer);
+  }, []);
 
-    {/* components */}
-    <RouteWithSidebar exact path={Routes.Accordions.path} component={Accordion} />
-    <RouteWithSidebar exact path={Routes.Alerts.path} component={Alerts} />
-    <RouteWithSidebar exact path={Routes.Badges.path} component={Badges} />
-    <RouteWithSidebar exact path={Routes.Breadcrumbs.path} component={Breadcrumbs} />
-    <RouteWithSidebar exact path={Routes.Buttons.path} component={Buttons} />
-    <RouteWithSidebar exact path={Routes.Forms.path} component={Forms} />
-    <RouteWithSidebar exact path={Routes.Modals.path} component={Modals} />
-    <RouteWithSidebar exact path={Routes.Navs.path} component={Navs} />
-    <RouteWithSidebar exact path={Routes.Navbars.path} component={Navbars} />
-    <RouteWithSidebar exact path={Routes.Pagination.path} component={Pagination} />
-    <RouteWithSidebar exact path={Routes.Popovers.path} component={Popovers} />
-    <RouteWithSidebar exact path={Routes.Progress.path} component={Progress} />
-    <RouteWithSidebar exact path={Routes.Tables.path} component={Tables} />
-    <RouteWithSidebar exact path={Routes.Tabs.path} component={Tabs} />
-    <RouteWithSidebar exact path={Routes.Tooltips.path} component={Tooltips} />
-    <RouteWithSidebar exact path={Routes.Toasts.path} component={Toasts} />
+  const toggleSettings = () => {
+    setShowSettings(!showSettings);
+    localStorage.setItem("settingsVisible", !showSettings);
+  };
 
-    {/* documentation */}
-    <RouteWithSidebar exact path={Routes.DocsOverview.path} component={DocsOverview} />
-    <RouteWithSidebar exact path={Routes.DocsDownload.path} component={DocsDownload} />
-    <RouteWithSidebar exact path={Routes.DocsQuickStart.path} component={DocsQuickStart} />
-    <RouteWithSidebar exact path={Routes.DocsLicense.path} component={DocsLicense} />
-    <RouteWithSidebar exact path={Routes.DocsFolderStructure.path} component={DocsFolderStructure} />
-    <RouteWithSidebar exact path={Routes.DocsBuild.path} component={DocsBuild} />
-    <RouteWithSidebar exact path={Routes.DocsChangelog.path} component={DocsChangelog} />
+  return (
+    <Route
+      {...rest}
+      render={(props) => (
+        <>
+          <Preloader show={!loaded} />
+          <Sidebar />
+          <main className="content">
+            <Navbar />
+            <Component {...props} />
+            <Footer toggleSettings={toggleSettings} showSettings={showSettings} />
+          </main>
+        </>
+      )}
+    />
+  );
+};
 
-    <Redirect to={Routes.NotFound.path} />
-  </Switch>
-);
+/* ==============================================================
+   PROTECTED ROUTE (Authentication + Role Check)
+============================================================== */
+const ProtectedRoute = ({ component: Component, allowedRoles, ...rest }) => {
+  const [userRole, setUserRole] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          setUserRole("guest");
+          setLoading(false);
+          return;
+        }
+
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", session.user.id)
+          .single();
+
+        if (error) throw error;
+        setUserRole(profile?.role || "guest");
+      } catch (err) {
+        console.error("Error fetching user role:", err.message);
+        setUserRole("guest");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserRole();
+  }, []);
+
+  if (loading) return <Preloader show={true} />;
+  if (userRole === "guest") return <Redirect to={Routes.Signin.path} />;
+  if (allowedRoles && !allowedRoles.includes(userRole))
+    return <Redirect to={Routes.NotFound.path} />;
+
+  return <RouteWithSidebar component={Component} {...rest} />;
+};
+
+/* ==============================================================
+   MAIN APP ROUTES
+============================================================== */
+export default function HomePage() {
+  return (
+    <Switch>
+      {/* Default Redirect */}
+      <Redirect exact from="/" to={Routes.Signin.path} />
+
+      {/* Public Routes */}
+      <RouteWithLoader exact path={Routes.Presentation.path} component={Presentation} />
+      <RouteWithLoader exact path={Routes.Signin.path} component={Signin} />
+      <RouteWithLoader exact path={Routes.Signup.path} component={Signup} />
+      <RouteWithLoader exact path={Routes.ForgotPassword.path} component={ForgotPassword} />
+
+      {/* ==========================================================
+         LEADER ROUTES
+      ========================================================== */}
+      <ProtectedRoute
+        exact
+        path="/leader/dashboard"
+        component={DashboardLeader}
+        allowedRoles={["leader"]}
+      />
+      <ProtectedRoute
+        exact
+        path="/leader/projects/create"
+        component={ProjectCreate}
+        allowedRoles={["leader"]}
+      />
+      <ProtectedRoute
+        exact
+        path="/leader/projects/list"
+        component={ProjectList}
+        allowedRoles={["leader"]}
+      />
+      <ProtectedRoute
+        exact
+        path="/leader/projects/members"
+        component={ProjectMembers}
+        allowedRoles={["leader"]}
+      />
+
+      {/* Leader: Students */}
+      <ProtectedRoute
+        exact
+        path="/leader/students/manage/:projectId"
+        component={StudentManage}
+        allowedRoles={["leader"]}
+      />
+      <ProtectedRoute
+        exact
+        path="/leader/students/view/:projectId/:id"
+        component={StudentView}
+        allowedRoles={["leader"]}
+      />
+
+      {/* Leader: Attendance */}
+      <ProtectedRoute
+        exact
+        path="/leader/attendance/history/:projectId"
+        component={AttendanceHistory}
+        allowedRoles={["leader"]}
+      />
+      <ProtectedRoute
+        exact
+        path="/leader/attendance/summary/:projectId"
+        component={AttendanceSummary}
+        allowedRoles={["leader"]}
+      />
+
+      {/* Leader: Requisition (✅ Added List Page) */}
+      <ProtectedRoute
+        exact
+        path="/leader/requisitions/list"
+        component={RequisitionList}
+        allowedRoles={["leader"]}
+      />
+      <ProtectedRoute
+        exact
+        path="/leader/requisitions/summary"
+        component={RequisitionSummary}
+        allowedRoles={["leader"]}
+      />
+      <ProtectedRoute
+        exact
+        path="/leader/requisitions/view/:projectId/:id"
+        component={RequisitionView}
+        allowedRoles={["leader"]}
+      />
+
+      {/* ==========================================================
+         MEMBER ROUTES
+      ========================================================== */}
+      <ProtectedRoute
+        exact
+        path="/member/dashboard"
+        component={DashboardMember}
+        allowedRoles={["member"]}
+      />
+      <ProtectedRoute
+  exact
+  path="/notifications"
+  component={NotificationCenter}
+  allowedRoles={["leader", "member"]}
+/>
+
+      <ProtectedRoute
+        exact
+        path="/member/projects/list"
+        component={ProjectList}
+        allowedRoles={["member"]}
+      />
+
+      {/* Member: Students */}
+      <ProtectedRoute
+        exact
+        path="/member/students/manage/:projectId"
+        component={StudentManage}
+        allowedRoles={["member"]}
+      />
+      <ProtectedRoute
+        exact
+        path="/member/students/add/:projectId"
+        component={StudentAdd}
+        allowedRoles={["member"]}
+      />
+      <ProtectedRoute
+        exact
+        path="/member/students/list/:projectId"
+        component={StudentList}
+        allowedRoles={["member"]}
+      />
+      <ProtectedRoute
+        exact
+        path="/member/students/edit/:projectId/:id"
+        component={StudentEdit}
+        allowedRoles={["member"]}
+      />
+      <ProtectedRoute
+        exact
+        path="/member/students/view/:projectId/:id"
+        component={StudentView}
+        allowedRoles={["member"]}
+      />
+
+      {/* Member: Attendance */}
+      <ProtectedRoute
+        exact
+        path="/member/attendance/manage/:projectId"
+        component={AttendanceManage}
+        allowedRoles={["member"]}
+      />
+      <ProtectedRoute
+        exact
+        path="/member/attendance/history/:projectId"
+        component={AttendanceHistory}
+        allowedRoles={["member"]}
+      />
+      <ProtectedRoute
+        exact
+        path="/member/attendance/summary/:projectId"
+        component={AttendanceSummary}
+        allowedRoles={["member"]}
+      />
+
+      {/* Member: Requisitions */}
+      <ProtectedRoute
+        exact
+        path="/member/requisitions/create/:projectId"
+        component={RequisitionCreate}
+        allowedRoles={["member"]}
+      />
+      <ProtectedRoute
+        exact
+        path="/member/requisitions/list/:projectId"
+        component={RequisitionList}
+        allowedRoles={["member"]}
+      />
+      <ProtectedRoute
+        exact
+        path="/member/requisitions/view/:projectId/:id"
+        component={RequisitionView}
+        allowedRoles={["member"]}
+      />
+
+      {/* Shared Overview */}
+      <ProtectedRoute
+        exact
+        path={Routes.DashboardOverview.path}
+        component={DashboardOverview}
+        allowedRoles={["leader", "member"]}
+      />
+
+      {/* 404 Catch-All */}
+      <RouteWithLoader path="*" component={NotFoundPage} />
+    </Switch>
+  );
+}

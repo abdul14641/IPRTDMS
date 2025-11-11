@@ -1,83 +1,166 @@
-
-import React from "react";
+import React, { useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faAngleLeft, faEnvelope, faUnlockAlt } from "@fortawesome/free-solid-svg-icons";
-import { faFacebookF, faGithub, faTwitter } from "@fortawesome/free-brands-svg-icons";
-import { Col, Row, Form, Card, Button, FormCheck, Container, InputGroup } from '@themesberg/react-bootstrap';
-import { Link } from 'react-router-dom';
-
+import { faEnvelope, faUnlockAlt } from "@fortawesome/free-solid-svg-icons";
+import {
+  Col,
+  Row,
+  Form,
+  Card,
+  Button,
+  Container,
+  InputGroup,
+  Alert,
+} from "@themesberg/react-bootstrap";
+import { Link, useHistory } from "react-router-dom";
 import { Routes } from "../../routes";
 import BgImage from "../../assets/img/illustrations/signin.svg";
+import { supabase } from "../../config/supabaseClient";
 
+export default function Signin() {
+  const history = useHistory();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [loading, setLoading] = useState(false);
 
-export default () => {
+  const handleSignIn = async (e) => {
+    e.preventDefault();
+    setErrorMsg("");
+    setLoading(true);
+
+    try {
+      // 1️⃣ Authenticate user
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
+
+      const user = data.user;
+      if (!user) throw new Error("User not found after login.");
+
+      // 2️⃣ Fetch profile (role)
+      let { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role, full_name")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      // Auto-create profile if missing
+      if (!profile) {
+        const { data: newProfile, error: createError } = await supabase
+          .from("profiles")
+          .insert([
+            {
+              id: user.id,
+              full_name: user.user_metadata.full_name || "New User",
+              email: user.email,
+              role: user.user_metadata.role || "member",
+            },
+          ])
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        profile = newProfile;
+      }
+
+      if (profileError && !profile) throw profileError;
+
+      const role = profile.role?.toLowerCase();
+
+      // 3️⃣ Redirect based on role
+      if (role === "leader" || role === "admin") {
+        history.push("/leader/dashboard");
+      } else if (role === "member") {
+        history.push("/member/dashboard");
+      } else {
+        setErrorMsg("Unknown role. Contact admin.");
+      }
+    } catch (err) {
+      console.error("Sign-in error:", err.message);
+      setErrorMsg(err.message || "Login failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <main>
       <section className="d-flex align-items-center my-5 mt-lg-6 mb-lg-5">
         <Container>
-          <p className="text-center">
-            <Card.Link as={Link} to={Routes.DashboardOverview.path} className="text-gray-700">
-              <FontAwesomeIcon icon={faAngleLeft} className="me-2" /> Back to homepage
-            </Card.Link>
-          </p>
-          <Row className="justify-content-center form-bg-image" style={{ backgroundImage: `url(${BgImage})` }}>
-            <Col xs={12} className="d-flex align-items-center justify-content-center">
+          <Row
+            className="justify-content-center form-bg-image"
+            style={{ backgroundImage: `url(${BgImage})` }}
+          >
+            <Col
+              xs={12}
+              className="d-flex align-items-center justify-content-center"
+            >
               <div className="bg-white shadow-soft border rounded border-light p-4 p-lg-5 w-100 fmxw-500">
-                <div className="text-center text-md-center mb-4 mt-md-0">
-                  <h3 className="mb-0">Sign in to our platform</h3>
+                <div className="text-center mb-4">
+                  <h3>Sign in to our platform</h3>
                 </div>
-                <Form className="mt-4">
+
+                {errorMsg && <Alert variant="danger">{errorMsg}</Alert>}
+
+                <Form onSubmit={handleSignIn} className="mt-4">
                   <Form.Group id="email" className="mb-4">
                     <Form.Label>Your Email</Form.Label>
                     <InputGroup>
                       <InputGroup.Text>
                         <FontAwesomeIcon icon={faEnvelope} />
                       </InputGroup.Text>
-                      <Form.Control autoFocus required type="email" placeholder="example@company.com" />
+                      <Form.Control
+                        type="email"
+                        placeholder="example@company.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                      />
                     </InputGroup>
                   </Form.Group>
-                  <Form.Group>
-                    <Form.Group id="password" className="mb-4">
-                      <Form.Label>Your Password</Form.Label>
-                      <InputGroup>
-                        <InputGroup.Text>
-                          <FontAwesomeIcon icon={faUnlockAlt} />
-                        </InputGroup.Text>
-                        <Form.Control required type="password" placeholder="Password" />
-                      </InputGroup>
-                    </Form.Group>
-                    <div className="d-flex justify-content-between align-items-center mb-4">
-                      <Form.Check type="checkbox">
-                        <FormCheck.Input id="defaultCheck5" className="me-2" />
-                        <FormCheck.Label htmlFor="defaultCheck5" className="mb-0">Remember me</FormCheck.Label>
-                      </Form.Check>
-                      <Card.Link className="small text-end">Lost password?</Card.Link>
-                    </div>
+
+                  <Form.Group id="password" className="mb-4">
+                    <Form.Label>Your Password</Form.Label>
+                    <InputGroup>
+                      <InputGroup.Text>
+                        <FontAwesomeIcon icon={faUnlockAlt} />
+                      </InputGroup.Text>
+                      <Form.Control
+                        type="password"
+                        placeholder="Password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                      />
+                    </InputGroup>
                   </Form.Group>
-                  <Button variant="primary" type="submit" className="w-100">
-                    Sign in
+
+                  <div className="d-flex justify-content-between align-items-center mb-4">
+                    <Form.Check type="checkbox" label="Remember me" />
+                    <Card.Link className="small text-end">Lost password?</Card.Link>
+                  </div>
+
+                  <Button
+                    variant="primary"
+                    type="submit"
+                    className="w-100"
+                    disabled={loading}
+                  >
+                    {loading ? "Signing in..." : "Sign in"}
                   </Button>
                 </Form>
 
-                <div className="mt-3 mb-4 text-center">
-                  <span className="fw-normal">or login with</span>
-                </div>
-                <div className="d-flex justify-content-center my-4">
-                  <Button variant="outline-light" className="btn-icon-only btn-pill text-facebook me-2">
-                    <FontAwesomeIcon icon={faFacebookF} />
-                  </Button>
-                  <Button variant="outline-light" className="btn-icon-only btn-pill text-twitter me-2">
-                    <FontAwesomeIcon icon={faTwitter} />
-                  </Button>
-                  <Button variant="outline-light" className="btn-icon-only btn-pil text-dark">
-                    <FontAwesomeIcon icon={faGithub} />
-                  </Button>
-                </div>
                 <div className="d-flex justify-content-center align-items-center mt-4">
                   <span className="fw-normal">
-                    Not registered?
-                    <Card.Link as={Link} to={Routes.Signup.path} className="fw-bold">
-                      {` Create account `}
+                    Not registered?{" "}
+                    <Card.Link
+                      as={Link}
+                      to={Routes.Signup.path}
+                      className="fw-bold"
+                    >
+                      Create account
                     </Card.Link>
                   </span>
                 </div>
@@ -88,4 +171,4 @@ export default () => {
       </section>
     </main>
   );
-};
+}

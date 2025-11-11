@@ -1,121 +1,182 @@
-
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import {
+  Navbar,
+  Nav,
+  Container,
+  Dropdown,
+  Image,
+  Badge,
+  Spinner,
+} from "@themesberg/react-bootstrap";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBell, faCog, faEnvelopeOpen, faSearch, faSignOutAlt, faUserShield } from "@fortawesome/free-solid-svg-icons";
-import { faUserCircle } from "@fortawesome/free-regular-svg-icons";
-import { Row, Col, Nav, Form, Image, Navbar, Dropdown, Container, ListGroup, InputGroup } from '@themesberg/react-bootstrap';
-
-import NOTIFICATIONS_DATA from "../data/notifications";
+import {
+  faBell,
+  faSignOutAlt,
+  faUserCircle,
+  faCog,
+} from "@fortawesome/free-solid-svg-icons";
+import { supabase } from "../config/supabaseClient";
+import { useHistory } from "react-router-dom";
 import Profile3 from "../assets/img/team/profile-picture-3.jpg";
 
+export default function TopNavbar() {
+  const history = useHistory();
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState([]);
+  const [userRole, setUserRole] = useState("");
+  const [loading, setLoading] = useState(true);
 
-export default (props) => {
-  const [notifications, setNotifications] = useState(NOTIFICATIONS_DATA);
-  const areNotificationsRead = notifications.reduce((acc, notif) => acc && notif.read, true);
+  useEffect(() => {
+    initNavbar();
+  }, []);
 
-  const markNotificationsAsRead = () => {
-    setTimeout(() => {
-      setNotifications(notifications.map(n => ({ ...n, read: true })));
-    }, 300);
+  const initNavbar = async () => {
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const userId = session?.session?.user?.id;
+      if (!userId) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, full_name")
+        .eq("id", userId)
+        .single();
+
+      if (profile) setUserRole(profile.role);
+
+      loadRecentNotifications(userId);
+      subscribeToRealtime(userId);
+    } catch (err) {
+      console.error("Navbar init error:", err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const loadRecentNotifications = async (userId) => {
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(5);
+    if (error) throw error;
+    setNotifications(data);
+    setUnreadCount(data.filter((n) => !n.read).length);
+  };
 
-  const Notification = (props) => {
-    const { link, sender, image, time, message, read = false } = props;
-    const readClassName = read ? "" : "text-danger";
+  const subscribeToRealtime = (userId) => {
+    const channel = supabase
+      .channel("navbar:notifications")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          setNotifications((prev) => [payload.new, ...prev].slice(0, 5));
+          setUnreadCount((prev) => prev + 1);
+        }
+      )
+      .subscribe();
 
-    return (
-      <ListGroup.Item action href={link} className="border-bottom border-light">
-        <Row className="align-items-center">
-          <Col className="col-auto">
-            <Image src={image} className="user-avatar lg-avatar rounded-circle" />
-          </Col>
-          <Col className="ps-0 ms--2">
-            <div className="d-flex justify-content-between align-items-center">
-              <div>
-                <h4 className="h6 mb-0 text-small">{sender}</h4>
-              </div>
-              <div className="text-end">
-                <small className={readClassName}>{time}</small>
-              </div>
-            </div>
-            <p className="font-small mt-1 mb-0">{message}</p>
-          </Col>
-        </Row>
-      </ListGroup.Item>
-    );
+    return () => supabase.removeChannel(channel);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    history.push("/signin");
+  };
+
+  const handleViewAll = () => {
+    const basePath = userRole === "leader" ? "/leader" : "/member";
+    history.push(`${basePath}/notifications`);
   };
 
   return (
     <Navbar variant="dark" expanded className="ps-0 pe-2 pb-0">
-      <Container fluid className="px-0">
-        <div className="d-flex justify-content-between w-100">
-          <div className="d-flex align-items-center">
-            <Form className="navbar-search">
-              <Form.Group id="topbarSearch">
-                <InputGroup className="input-group-merge search-bar">
-                  <InputGroup.Text><FontAwesomeIcon icon={faSearch} /></InputGroup.Text>
-                  <Form.Control type="text" placeholder="Search" />
-                </InputGroup>
-              </Form.Group>
-            </Form>
-          </div>
-          <Nav className="align-items-center">
-            <Dropdown as={Nav.Item} onToggle={markNotificationsAsRead} >
-              <Dropdown.Toggle as={Nav.Link} className="text-dark icon-notifications me-lg-3">
-                <span className="icon icon-sm">
-                  <FontAwesomeIcon icon={faBell} className="bell-shake" />
-                  {areNotificationsRead ? null : <span className="icon-badge rounded-circle unread-notifications" />}
-                </span>
-              </Dropdown.Toggle>
-              <Dropdown.Menu className="dashboard-dropdown notifications-dropdown dropdown-menu-lg dropdown-menu-center mt-2 py-0">
-                <ListGroup className="list-group-flush">
-                  <Nav.Link href="#" className="text-center text-primary fw-bold border-bottom border-light py-3">
-                    Notifications
-                  </Nav.Link>
+      <Container fluid className="px-0 d-flex justify-content-between align-items-center">
+        <Navbar.Brand className="fw-bold text-light">IPRT Dashboard</Navbar.Brand>
 
-                  {notifications.map(n => <Notification key={`notification-${n.id}`} {...n} />)}
+        <Nav className="align-items-center">
+          <Dropdown as={Nav.Item} align="end">
+            <Dropdown.Toggle as={Nav.Link} className="text-dark position-relative">
+              <FontAwesomeIcon icon={faBell} size="lg" />
+              {unreadCount > 0 && (
+                <Badge
+                  bg="danger"
+                  pill
+                  className="position-absolute top-0 start-100 translate-middle"
+                >
+                  {unreadCount}
+                </Badge>
+              )}
+            </Dropdown.Toggle>
 
-                  <Dropdown.Item className="text-center text-primary fw-bold py-3">
-                    View all
-                  </Dropdown.Item>
-                </ListGroup>
-              </Dropdown.Menu>
-            </Dropdown>
+            <Dropdown.Menu className="notifications-dropdown dropdown-menu-lg dropdown-menu-center mt-2 py-0">
+              <Dropdown.Header className="fw-bold py-2 text-center bg-light">
+                Notifications
+              </Dropdown.Header>
 
-            <Dropdown as={Nav.Item}>
-              <Dropdown.Toggle as={Nav.Link} className="pt-1 px-0">
-                <div className="media d-flex align-items-center">
-                  <Image src={Profile3} className="user-avatar md-avatar rounded-circle" />
-                  <div className="media-body ms-2 text-dark align-items-center d-none d-lg-block">
-                    <span className="mb-0 font-small fw-bold">Bonnie Green</span>
-                  </div>
+              {loading ? (
+                <div className="text-center py-3">
+                  <Spinner animation="border" size="sm" variant="primary" />
                 </div>
-              </Dropdown.Toggle>
-              <Dropdown.Menu className="user-dropdown dropdown-menu-right mt-2">
-                <Dropdown.Item className="fw-bold">
-                  <FontAwesomeIcon icon={faUserCircle} className="me-2" /> My Profile
-                </Dropdown.Item>
-                <Dropdown.Item className="fw-bold">
-                  <FontAwesomeIcon icon={faCog} className="me-2" /> Settings
-                </Dropdown.Item>
-                <Dropdown.Item className="fw-bold">
-                  <FontAwesomeIcon icon={faEnvelopeOpen} className="me-2" /> Messages
-                </Dropdown.Item>
-                <Dropdown.Item className="fw-bold">
-                  <FontAwesomeIcon icon={faUserShield} className="me-2" /> Support
-                </Dropdown.Item>
+              ) : notifications.length === 0 ? (
+                <div className="text-center py-3 text-muted small">
+                  No recent notifications
+                </div>
+              ) : (
+                notifications.map((n) => (
+                  <Dropdown.Item
+                    key={n.id}
+                    className={`py-2 small ${
+                      n.read ? "text-muted" : "fw-bold text-dark"
+                    }`}
+                    onClick={() => handleViewAll()}
+                  >
+                    {n.title}
+                    <div className="small text-secondary">
+                      {new Date(n.created_at).toLocaleString()}
+                    </div>
+                  </Dropdown.Item>
+                ))
+              )}
 
-                <Dropdown.Divider />
+              <Dropdown.Divider />
+              <Dropdown.Item
+                className="text-center fw-bold text-primary"
+                onClick={handleViewAll}
+              >
+                View all
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown>
 
-                <Dropdown.Item className="fw-bold">
-                  <FontAwesomeIcon icon={faSignOutAlt} className="text-danger me-2" /> Logout
-                </Dropdown.Item>
-              </Dropdown.Menu>
-            </Dropdown>
-          </Nav>
-        </div>
+          <Dropdown as={Nav.Item}>
+            <Dropdown.Toggle as={Nav.Link} className="pt-1 px-0">
+              <div className="media d-flex align-items-center">
+                <Image src={Profile3} className="user-avatar md-avatar rounded-circle" />
+              </div>
+            </Dropdown.Toggle>
+            <Dropdown.Menu className="user-dropdown dropdown-menu-right mt-2">
+              <Dropdown.Item>
+                <FontAwesomeIcon icon={faUserCircle} className="me-2" /> Profile
+              </Dropdown.Item>
+              <Dropdown.Item>
+                <FontAwesomeIcon icon={faCog} className="me-2" /> Settings
+              </Dropdown.Item>
+              <Dropdown.Divider />
+              <Dropdown.Item onClick={handleLogout} className="text-danger fw-bold">
+                <FontAwesomeIcon icon={faSignOutAlt} className="me-2" /> Logout
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown>
+        </Nav>
       </Container>
     </Navbar>
   );
-};
+}
